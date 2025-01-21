@@ -2,14 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 type ParcelStore struct {
 	db *sql.DB
 }
-
-var ErrWrongStatus = fmt.Errorf("некорректный статус, статус должен быть `registered`")
 
 func NewParcelStore(db *sql.DB) ParcelStore {
 	return ParcelStore{db: db}
@@ -44,6 +41,7 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var res []Parcel
 
@@ -81,20 +79,13 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 //
 // Для изменения адреса статус посылки должен быть равен ParcelStatusRegistered
 func (s ParcelStore) SetAddress(number int, address string) error {
-	parcel, err := s.Get(number)
+	_, err := s.db.Exec("UPDATE parcel SET address = :address WHERE number = :number AND status = :status",
+		sql.Named("address", address),
+		sql.Named("number", number),
+		sql.Named("status", ParcelStatusRegistered),
+	)
 	if err != nil {
 		return err
-	}
-	if parcel.Status == ParcelStatusRegistered {
-		_, err := s.db.Exec("UPDATE parcel SET address = :address WHERE number = :number",
-			sql.Named("address", address),
-			sql.Named("number", number),
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		return ErrWrongStatus
 	}
 
 	return nil
@@ -104,19 +95,12 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 //
 // Для удаления информации статус посылки должен быть равен ParcelStatusRegistered
 func (s ParcelStore) Delete(number int) error {
-	parcel, err := s.Get(number)
+	_, err := s.db.Exec("DELETE FROM parcel WHERE number = :number AND status = :status",
+		sql.Named("number", number),
+		sql.Named("status", ParcelStatusRegistered),
+	)
 	if err != nil {
 		return err
-	}
-	if parcel.Status == ParcelStatusRegistered {
-		_, err := s.db.Exec("DELETE FROM parcel WHERE number = :number",
-			sql.Named("number", number),
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		return ErrWrongStatus
 	}
 
 	return nil
